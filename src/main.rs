@@ -1,56 +1,45 @@
-use tree_sitter::{Language, Parser};
+use std::path::PathBuf;
+use structopt::StructOpt;
 
-extern "C" {
-    fn tree_sitter_rust() -> Language;
+#[derive(StructOpt)]
+struct Cli {
+    #[structopt(short, long)]
+    bytes: bool,
+
+    #[structopt(short, long)]
+    chars: bool,
+
+    #[structopt(short, long)]
+    words: bool,
+
+    #[structopt(short, long)]
+    tokens: bool,
+
+    #[structopt(short, long)]
+    lines: bool,
+
+    #[structopt(short, long, parse(from_os_str))]
+    files: Option<Vec<PathBuf>>,
+}
+
+impl From<&Cli> for tc::Config {
+    fn from(cli: &Cli) -> Self {
+        tc::Config {
+            bytes: cli.bytes,
+            chars: cli.chars,
+            words: cli.words,
+            tokens: cli.tokens,
+            lines: cli.lines,
+        }
+    }
 }
 
 fn main() {
-    let mut parser = Parser::new();
-    let language = unsafe { tree_sitter_rust() };
-    parser.set_language(language).unwrap();
-    let source_code = "fn test() { let mut foo = \"hello\";}";
-    let tree = parser.parse(source_code, None).unwrap();
-    let root_node = tree.root_node();
-    for x in root_node.children(&mut root_node.walk()) {
-        if let Ok(name) = x.utf8_text(source_code.as_bytes()) {
-            println!("{}", name);
-        } else {
-        }
-        println!("{}", x.to_sexp());
-        for y in x.children(&mut x.walk()) {
-            if let Ok(name) = y.utf8_text(source_code.as_bytes()) {
-                println!("{}", name);
-            } else {
-            }
-            println!("	{}", y.to_sexp());
-            for z in y.children(&mut y.walk()) {
-                if let Ok(name) = z.utf8_text(source_code.as_bytes()) {
-                    println!("{}", name);
-                } else {
-                }
-                println!("		{}", z.to_sexp());
-                for a in z.children(&mut z.walk()) {
-                    if let Ok(name) = a.utf8_text(source_code.as_bytes()) {
-                        println!("{}", name);
-                    } else {
-                    }
-                    println!("			{}", a.to_sexp());
-                    for b in a.children(&mut a.walk()) {
-                        if let Ok(name) = b.utf8_text(source_code.as_bytes()) {
-                            println!("{}", name);
-                        } else {
-                        }
-                        println!("				{}", b.to_sexp());
-                        for c in b.children(&mut b.walk()) {
-                            if let Ok(name) = c.utf8_text(source_code.as_bytes()) {
-                                println!("{}", name);
-                            } else {
-                            }
-                            println!("					{}", c.to_sexp());
-                        }
-                    }
-                }
-            }
+    let cli = Cli::from_args();
+    if let Some(files) = &cli.files {
+        let counts = tc::count_files(files, &tc::Config::from(&cli));
+        for count in counts {
+            println!("{:?}", count);
         }
     }
 }

@@ -1,11 +1,11 @@
-use std::path::PathBuf;
+// use std::path::PathBuf;
 
 fn main() {
-    let dir: PathBuf = ["tree-sitter-rust", "src"].iter().collect();
+    // let dir: PathBuf = ["tree-sitter-rust", "src"].iter().collect();
 
-    cc::Build::new()
-        .include(&dir)
-        .file(dir.join("parser.c"))
-        .file(dir.join("scanner.c"))
-        .compile("tree-sitter-rust");
+    // cc::Build::new()
+    //     .include(&dir)
+    //     .file(dir.join("parser.c"))
+    //     .file(dir.join("scanner.c"))
+    //     .compile("tree-sitter-rust");
 }
