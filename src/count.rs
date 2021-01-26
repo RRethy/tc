@@ -3,7 +3,7 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 
-const BUFFER_SIZE: usize = 512 * 1024;
+const BUFFER_SIZE: usize = 1048576;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Context<'a> {
@@ -58,33 +58,6 @@ pub fn file<'a>(path: &'a PathBuf, config: &Config) -> Count<'a> {
         lines: if config.lines { Some(lines) } else { None },
     }
 }
-
-// pub fn file<'a>(f: &'a PathBuf, config: &Config) -> Count<'a> {
-//     let text = &std::fs::read(&f).unwrap();
-//     let mut lines = 0;
-//     let bytes = text.len();
-//     let mut words = 0;
-//     let mut in_word = false;
-//     for &b in text {
-//         if b == b'\n' {
-//             lines += 1;
-//         }
-//         if b.is_ascii_whitespace() {
-//             if in_word {
-//                 words += 1;
-//                 in_word = false;
-//             }
-//         } else {
-//             in_word = true;
-//         }
-//     }
-//     Count {
-//         context: Context::File { path: &f },
-//         bytes: if config.bytes { Some(bytes) } else { None },
-//         words: if config.words { Some(words) } else { None },
-//         lines: if config.lines { Some(lines) } else { None },
-//     }
-// }
 
 #[cfg(test)]
 mod tests {
