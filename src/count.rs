@@ -1,6 +1,6 @@
 use crate::config::Config;
 use std::fs::File;
-use std::io::{BufRead, BufReader};
+use std::io::{Read, Seek};
 use std::path::PathBuf;
 
 const BUFFER_SIZE: usize = 1048576;
@@ -14,6 +14,7 @@ pub enum Context<'a> {
 pub struct Count<'a> {
     context: Context<'a>,
     bytes: Option<usize>,
+    chars: Option<usize>,
     words: Option<usize>,
     lines: Option<usize>,
 }
@@ -23,37 +24,84 @@ pub fn files<'a>(paths: &'a Vec<PathBuf>, config: &Config) -> Vec<Count<'a>> {
 }
 
 pub fn file<'a>(path: &'a PathBuf, config: &Config) -> Count<'a> {
-    let file = File::open(path).unwrap();
-    let mut reader = BufReader::with_capacity(BUFFER_SIZE, file);
+    let mut file = File::open(path).unwrap();
+    let mut buffer = [0; BUFFER_SIZE];
+    // let mut reader = BufReader::with_capacity(BUFFER_SIZE, file);
     let mut lines = 0;
     let mut bytes = 0;
     let mut words = 0;
+    let mut chars = 0;
     let mut in_word = false;
+
     loop {
-        let buffer = reader.fill_buf().unwrap();
-        let l = buffer.len();
-        if l == 0 {
+        let n = file.read(&mut buffer).unwrap();
+        if n == 0 {
             break;
         }
-        bytes += l;
-        for &b in buffer {
-            if b == b'\n' {
-                lines += 1;
-            }
-            if b.is_ascii_whitespace() {
-                if in_word {
-                    words += 1;
-                    in_word = false;
+        let text = &buffer[..n];
+        bytes += n;
+        if config.chars {
+            match std::str::from_utf8(text) {
+                Ok(s) => {
+                    for b in s.chars() {
+                        chars += 1;
+                        if b == '\n' {
+                            lines += 1;
+                        }
+                        if b.is_ascii_whitespace() {
+                            if in_word {
+                                words += 1;
+                                in_word = false;
+                            }
+                        } else {
+                            in_word = true;
+                        }
+                    }
                 }
-            } else {
-                in_word = true;
+                Err(e) => {
+                    let end = e.valid_up_to();
+                    // SAFETY: Just ran validation.
+                    let s = unsafe { std::str::from_utf8_unchecked(&text[..end]) };
+                    for b in s.chars() {
+                        chars += 1;
+                        if b == '\n' {
+                            lines += 1;
+                        }
+                        if b.is_ascii_whitespace() {
+                            if in_word {
+                                words += 1;
+                                in_word = false;
+                            }
+                        } else {
+                            in_word = true;
+                        }
+                    }
+                    let offset = n - end;
+                    bytes -= offset;
+                    file.seek(std::io::SeekFrom::Current(-1 * offset as i64))
+                        .unwrap();
+                }
+            }
+        } else {
+            for &b in text.iter() {
+                if b == b'\n' {
+                    lines += 1;
+                }
+                if b.is_ascii_whitespace() {
+                    if in_word {
+                        words += 1;
+                        in_word = false;
+                    }
+                } else {
+                    in_word = true;
+                }
             }
         }
-        reader.consume(l);
     }
     Count {
         context: Context::File { path },
         bytes: if config.bytes { Some(bytes) } else { None },
+        chars: if config.chars { Some(chars) } else { None },
         words: if config.words { Some(words) } else { None },
         lines: if config.lines { Some(lines) } else { None },
     }
@@ -63,7 +111,7 @@ pub fn file<'a>(path: &'a PathBuf, config: &Config) -> Count<'a> {
 mod tests {
     use super::*;
 
-    fn default_config() -> Config {
+    fn config_all_true() -> Config {
         Config {
             bytes: true,
             chars: true,
@@ -73,79 +121,119 @@ mod tests {
         }
     }
 
-    fn count_for_tiny_file(path: &PathBuf) -> Count {
-        Count {
-            context: Context::File { path: path },
-            bytes: Some(172),
-            words: Some(33),
-            lines: Some(5),
+    fn config_all_false() -> Config {
+        Config {
+            bytes: false,
+            chars: false,
+            words: false,
+            tokens: false,
+            lines: false,
         }
     }
 
-    fn tiny_file_path() -> PathBuf {
-        ["test_data", "tiny.txt"].iter().collect()
+    fn count_empty(path: &PathBuf) -> Count {
+        Count {
+            context: Context::File { path: path },
+            bytes: None,
+            chars: None,
+            words: None,
+            lines: None,
+        }
+    }
+
+    fn count_for_default_file(path: &PathBuf) -> Count {
+        Count {
+            context: Context::File { path: path },
+            bytes: Some(1048697),
+            chars: Some(726780),
+            words: Some(183155),
+            lines: Some(20681),
+        }
+    }
+
+    fn default_file_path() -> PathBuf {
+        ["test_data", "default.txt"].iter().collect()
     }
 
     #[test]
     fn it_counts_file() {
-        let path: PathBuf = tiny_file_path();
-        let count = file(&path, &default_config());
-        assert_eq!(count, count_for_tiny_file(&path),);
+        let path: PathBuf = default_file_path();
+        let count = file(&path, &config_all_true());
+        assert_eq!(count, count_for_default_file(&path),);
     }
 
     #[test]
-    fn it_does_not_count_bytes_in_file() {
-        let path: PathBuf = tiny_file_path();
+    fn it_counts_bytes_in_file() {
+        let path: PathBuf = default_file_path();
         let count = file(
             &path,
             &Config {
-                bytes: false,
-                ..default_config()
+                bytes: true,
+                ..config_all_false()
             },
         );
         assert_eq!(
             count,
             Count {
-                bytes: None,
-                ..count_for_tiny_file(&path)
+                bytes: Some(1048697),
+                ..count_empty(&path)
             }
         );
     }
 
     #[test]
-    fn it_does_not_count_words_in_file() {
-        let path: PathBuf = tiny_file_path();
+    fn it_counts_chars_in_file() {
+        let path: PathBuf = default_file_path();
         let count = file(
             &path,
             &Config {
-                words: false,
-                ..default_config()
+                chars: true,
+                ..config_all_false()
             },
         );
         assert_eq!(
             count,
             Count {
-                words: None,
-                ..count_for_tiny_file(&path)
+                chars: Some(726780),
+                ..count_empty(&path)
             }
         );
     }
 
     #[test]
-    fn it_does_not_count_lines_in_file() {
-        let path: PathBuf = tiny_file_path();
+    fn it_counts_words_in_file() {
+        let path: PathBuf = default_file_path();
         let count = file(
             &path,
             &Config {
-                lines: false,
-                ..default_config()
+                words: true,
+                ..config_all_false()
             },
         );
         assert_eq!(
             count,
             Count {
-                lines: None,
-                ..count_for_tiny_file(&path)
+                words: Some(183155),
+                ..count_empty(&path)
+            }
+        );
+    }
+
+    #[test]
+    fn it_counts_lines_in_file() {
+        let path: PathBuf = default_file_path();
+        let count = file(
+            &path,
+            &Config {
+                lines: true,
+                ..config_all_false()
+            },
+        );
+        assert_eq!(
+            count,
+            Count {
+                lines: Some(20681),
+                ..count_empty(&path)
             }
         );
     }

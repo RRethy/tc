@@ -1,5 +1,0 @@
-Hello, World! This file has several bytes, 문자가 많다, it has many words,
-and it has many lines.
-and it has many lines.
-and it has many lines.
-and it has many lines.
