@@ -37,9 +37,11 @@ impl From<&Cli> for tc::Config {
 fn main() {
     let cli = Cli::from_args();
     if let Some(files) = &cli.files {
-        let counts = tc::count_files(files, &tc::Config::from(&cli));
-        for count in counts {
-            println!("{:?}", count);
+        let counts = tc::count::files(files, &tc::Config::from(&cli));
+        for res in counts {
+            if let Ok(count) = res {
+                println!("{:?}", count);
+            }
         }
     }
 }

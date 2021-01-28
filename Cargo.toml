@@ -13,6 +13,7 @@ cc="*"
 tree-sitter = "0.17.1"
 structopt = "0.3"
 walkdir = "2"
+utf-8 = "0.7.5"
 
 [dev-dependencies]
 criterion = "0.3"
