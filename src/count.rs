@@ -7,17 +7,48 @@ use utf8::{BufReadDecoder, BufReadDecoderError};
 const BUFFER_SIZE: usize = 1048576;
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum Context<'a> {
-    File { path: &'a PathBuf },
+pub enum Context<'pathbuf> {
+    File { path: &'pathbuf PathBuf },
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct Count<'a> {
-    context: Context<'a>,
-    bytes: Option<usize>,
-    chars: Option<usize>,
-    words: Option<usize>,
-    lines: Option<usize>,
+pub struct Count<'pathbuf> {
+    pub context: Context<'pathbuf>,
+    pub bytes: Option<usize>,
+    pub chars: Option<usize>,
+    pub words: Option<usize>,
+    pub lines: Option<usize>,
+}
+
+impl<'pathbuf> Count<'pathbuf> {
+    pub fn to_counts_vec(&self) -> Vec<usize> {
+        let mut vec = Vec::new();
+        if let Some(bytes) = self.bytes {
+            vec.push(bytes)
+        }
+        if let Some(chars) = self.chars {
+            vec.push(chars)
+        }
+        if let Some(words) = self.words {
+            vec.push(words)
+        }
+        if let Some(lines) = self.lines {
+            vec.push(lines)
+        }
+        vec
+    }
+
+    pub fn to_str_vec(&self) -> Vec<String> {
+        let mut vec = vec![self.groupname()];
+        vec.extend(self.to_counts_vec().iter().map(ToString::to_string));
+        vec
+    }
+
+    pub fn groupname(&self) -> String {
+        match self.context {
+            Context::File { path } => path.to_string_lossy().to_string(),
+        }
+    }
 }
 
 #[derive(Debug)]
