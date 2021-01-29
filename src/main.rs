@@ -1,5 +1,6 @@
 use colored::*;
 use num_format::{Locale, ToFormattedString};
+use std::io;
 use std::path::PathBuf;
 use structopt::StructOpt;
 use term_table::row::Row;
@@ -22,6 +23,9 @@ struct Cli {
 
     #[structopt(short, long)]
     lines: bool,
+
+    #[structopt(long)]
+    stdin: bool,
 
     files: Vec<PathBuf>,
 }
@@ -50,10 +54,36 @@ impl From<&Cli> for tc::Config {
 
 fn main() {
     let cli = Cli::from_args();
-    let files = &cli.files;
     let config = tc::Config::from(&cli);
-    let results = tc::count::files(files, &config);
+    let mut files = cli.files;
+    if files.len() == 0 || cli.stdin {
+        files.extend(read_files_stdin());
+    }
+    let results = tc::count::files(&files, &config);
     pprint(results, &config);
+}
+
+fn read_files_stdin() -> Vec<PathBuf> {
+    let mut paths = Vec::new();
+    loop {
+        let mut buf = String::new();
+        let n = io::stdin().read_line(&mut buf).unwrap();
+        if n == 0 {
+            break;
+        } else {
+            if buf.ends_with('\n') {
+                buf.pop();
+                if buf.ends_with('\r') {
+                    buf.pop();
+                }
+            }
+            if buf.len() > 0 {
+                // TODO ensure it's a valid pathbuf, maybe this should be done in the lib
+                paths.push(PathBuf::from(buf));
+            }
+        }
+    }
+    paths
 }
 
 fn pprint(results: Vec<Result<tc::count::Count, tc::count::Error>>, config: &tc::Config) {

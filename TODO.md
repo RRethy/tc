@@ -2,10 +2,14 @@
 
 * ~Pretty print output using a table~
 * ~Better defaults for running `tc .` or `tc` or `tc <filename>`~
-* rename context -> group
-* rename chars -> utf8chars
+* ~rename context -> group~
+* ~rename chars -> utf8chars~
+* ~support stdin instead of file reading~
 * Support directory walking
-* Grouping
+* vcs/git support
 * sorting output
-* support stdin instead of file reading
+* Grouping
+* Better error handling
+    * Remove all unwrap()
 * Treesitter support
+* prebuilt options for common combinations
