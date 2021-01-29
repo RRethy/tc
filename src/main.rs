@@ -23,29 +23,37 @@ struct Cli {
     #[structopt(short, long)]
     lines: bool,
 
-    #[structopt(short, long, parse(from_os_str))]
-    files: Option<Vec<PathBuf>>,
+    files: Vec<PathBuf>,
 }
 
 impl From<&Cli> for tc::Config {
     fn from(cli: &Cli) -> Self {
-        tc::Config {
-            bytes: cli.bytes,
-            chars: cli.chars,
-            words: cli.words,
-            tokens: cli.tokens,
-            lines: cli.lines,
+        if !(cli.bytes || cli.chars || cli.words || cli.lines) {
+            tc::Config {
+                bytes: true,
+                chars: true,
+                words: true,
+                tokens: cli.tokens,
+                lines: true,
+            }
+        } else {
+            tc::Config {
+                bytes: cli.bytes,
+                chars: cli.chars,
+                words: cli.words,
+                tokens: cli.tokens,
+                lines: cli.lines,
+            }
         }
     }
 }
 
 fn main() {
     let cli = Cli::from_args();
-    if let Some(files) = &cli.files {
-        let config = tc::Config::from(&cli);
-        let results = tc::count::files(files, &config);
-        pprint(results, &config);
-    }
+    let files = &cli.files;
+    let config = tc::Config::from(&cli);
+    let results = tc::count::files(files, &config);
+    pprint(results, &config);
 }
 
 fn pprint(results: Vec<Result<tc::count::Count, tc::count::Error>>, config: &tc::Config) {
