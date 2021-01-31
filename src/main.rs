@@ -1,6 +1,6 @@
 use colored::*;
 use num_format::{Locale, ToFormattedString};
-use std::io;
+use std::io::stdin;
 use std::path::PathBuf;
 use structopt::StructOpt;
 use term_table::row::Row;
@@ -19,13 +19,13 @@ struct Cli {
     words: bool,
 
     #[structopt(short, long)]
-    tokens: bool,
-
-    #[structopt(short, long)]
     lines: bool,
 
     #[structopt(long)]
     stdin: bool,
+
+    #[structopt(long)]
+    file_from: PathBuf,
 
     files: Vec<PathBuf>,
 }
@@ -37,7 +37,6 @@ impl From<&Cli> for tc::Config {
                 bytes: true,
                 chars: true,
                 words: true,
-                tokens: cli.tokens,
                 lines: true,
             }
         } else {
@@ -45,37 +44,22 @@ impl From<&Cli> for tc::Config {
                 bytes: cli.bytes,
                 chars: cli.chars,
                 words: cli.words,
-                tokens: cli.tokens,
                 lines: cli.lines,
             }
         }
     }
 }
 
-fn main() {
-    let cli = Cli::from_args();
-    let config = tc::Config::from(&cli);
-    let mut files = cli.files;
-    if files.len() == 0 || cli.stdin {
-        files.extend(read_files_stdin());
-    }
-    let results = tc::count::files(&files, &config);
-    pprint(results, &config);
-}
-
 fn read_files_stdin() -> Vec<PathBuf> {
     let mut paths = Vec::new();
     loop {
         let mut buf = String::new();
-        let n = io::stdin().read_line(&mut buf).unwrap();
+        let n = stdin().read_line(&mut buf).unwrap();
         if n == 0 {
             break;
         } else {
             if buf.ends_with('\n') {
                 buf.pop();
-                if buf.ends_with('\r') {
-                    buf.pop();
-                }
             }
             if buf.len() > 0 {
                 // TODO ensure it's a valid pathbuf, maybe this should be done in the lib
@@ -118,4 +102,23 @@ fn pprint(results: Vec<Result<tc::count::Count, tc::count::Error>>, config: &tc:
         }
     }
     println!("{}", table.render());
+}
+
+fn run() -> Result<(), tc::error::Error> {
+    let cli = Cli::from_args();
+    let config = tc::Config::from(&cli);
+    let mut files = cli.files;
+    if files.len() == 0 && !cli.stdin {
+        files.extend(read_files_stdin());
+    }
+    let results = tc::count::files(&files, &config);
+    pprint(results, &config);
+    Ok(())
+}
+
+fn main() {
+    match run() {
+        Ok(()) => {}
+        Err(_) => {}
+    }
 }

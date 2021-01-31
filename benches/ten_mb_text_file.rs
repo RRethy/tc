@@ -9,7 +9,6 @@ fn criterion_benchmark(c: &mut Criterion) {
                     bytes: true,
                     chars: true,
                     words: true,
-                    tokens: true,
                     lines: true,
                 },
             );

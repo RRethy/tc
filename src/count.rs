@@ -1,10 +1,72 @@
 use crate::config::Config;
 use std::fs::File;
-use std::io::{self, BufRead, BufReader};
+use std::io::{self, BufRead, BufReader, Read};
 use std::path::PathBuf;
 use utf8::{BufReadDecoder, BufReadDecoderError};
 
 const BUFFER_SIZE: usize = 1048576;
+
+pub(crate) fn binary<T: Read>(mut reader: BufReader<T>) -> (usize, usize, usize) {
+    let (mut bytes, mut words, mut lines) = (0, 0, 0);
+    let mut in_word = false;
+    loop {
+        let buffer = match reader.fill_buf() {
+            Ok(b) => b,
+            Err(_) => return (0, 0, 0), // TODO
+        };
+        let len = buffer.len();
+        if len == 0 {
+            break;
+        }
+        bytes += len;
+        for &b in buffer {
+            lines += if b == b'\n' { 1 } else { 0 };
+            if b.is_ascii_whitespace() {
+                words += if in_word { 1 } else { 0 };
+                in_word = false;
+            } else {
+                in_word = true;
+            }
+        }
+        reader.consume(len);
+    }
+    if in_word {
+        words += 1;
+    }
+    (bytes, words, lines)
+}
+
+pub(crate) fn utf8<T: Read>(reader: BufReader<T>) -> (usize, usize, usize, usize) {
+    let (mut bytes, mut chars, mut words, mut lines) = (0, 0, 0, 0);
+    let mut in_word = false;
+    let mut decoder = BufReadDecoder::new(reader);
+    loop {
+        if let Some(res) = decoder.next_strict() {
+            match res {
+                Ok(str) => {
+                    bytes += str.len();
+                    for c in str.chars() {
+                        chars += 1;
+                        lines += if c == '\n' { 1 } else { 0 };
+                        if c.is_ascii_whitespace() {
+                            words += if in_word { 1 } else { 0 };
+                            in_word = false;
+                        } else {
+                            in_word = true;
+                        }
+                    }
+                }
+                Err(_) => return (0, 0, 0, 0), // TODO fail over to binary file
+            }
+        } else {
+            break;
+        }
+    }
+    if in_word {
+        words += 1;
+    }
+    (bytes, chars, words, lines)
+}
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Context<'pathbuf> {
@@ -171,7 +233,6 @@ mod tests {
             bytes: true,
             chars: true,
             words: true,
-            tokens: true,
             lines: true,
         }
     }
@@ -181,7 +242,6 @@ mod tests {
             bytes: false,
             chars: false,
             words: false,
-            tokens: false,
             lines: false,
         }
     }
@@ -290,6 +350,50 @@ mod tests {
                 lines: Some(20681),
                 ..count_empty(&path)
             }
+        );
+    }
+
+    #[test]
+    fn binary_reader_has_correct_counts() {
+        let text: &[u8] =
+            "hello😀😃😄😁😆😅😂🤣😀😃😄😁 hello world 12345\n67890😀 😃 😄 😁".as_bytes();
+        let reader = BufReader::with_capacity(10, text);
+        let (bytes, words, lines) = binary(reader);
+        assert_eq!(
+            96, bytes,
+            "expected byte count does not match actual byte count"
+        );
+        assert_eq!(
+            8, words,
+            "expected word count does not match actual word count"
+        );
+        assert_eq!(
+            1, lines,
+            "expected line count does not match actual line count"
+        );
+    }
+
+    #[test]
+    fn utf8_reader_has_correct_counts() {
+        let text: &[u8] =
+            "hello😀😃😄😁😆😅😂🤣😀😃😄😁 hello world 12345\n67890😀 😃 😄 😁".as_bytes();
+        let reader = BufReader::with_capacity(10, text);
+        let (bytes, chars, words, lines) = utf8(reader);
+        assert_eq!(
+            96, bytes,
+            "expected byte count does not match actual byte count"
+        );
+        assert_eq!(
+            48, chars,
+            "expected char count does not match actual char count"
+        );
+        assert_eq!(
+            8, words,
+            "expected word count does not match actual word count"
+        );
+        assert_eq!(
+            1, lines,
+            "expected line count does not match actual line count"
         );
     }
 }
