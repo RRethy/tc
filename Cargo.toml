@@ -17,6 +17,7 @@ utf-8 = "0.7.5"
 colored = "2"
 term-table = { git = "https://github.com/RRethy/term-table-rs", branch = "fix-colored-tables" }
 num-format = "0.4.0"
+bytecount = "0.6.2"
 
 [dev-dependencies]
 criterion = "0.3"

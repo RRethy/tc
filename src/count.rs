@@ -1,4 +1,5 @@
 use crate::config::Config;
+use bytecount;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, Read};
 use std::path::PathBuf;
@@ -6,6 +7,7 @@ use utf8::{BufReadDecoder, BufReadDecoderError};
 
 const BUFFER_SIZE: usize = 1048576;
 
+// count bytes, words, lines
 pub(crate) fn binary<T: Read>(mut reader: BufReader<T>) -> (usize, usize, usize) {
     let (mut bytes, mut words, mut lines) = (0, 0, 0);
     let mut in_word = false;
@@ -36,6 +38,7 @@ pub(crate) fn binary<T: Read>(mut reader: BufReader<T>) -> (usize, usize, usize)
     (bytes, words, lines)
 }
 
+// count bytes, chars, words, lines
 pub(crate) fn utf8<T: Read>(reader: BufReader<T>) -> (usize, usize, usize, usize) {
     let (mut bytes, mut chars, mut words, mut lines) = (0, 0, 0, 0);
     let mut in_word = false;
@@ -66,6 +69,25 @@ pub(crate) fn utf8<T: Read>(reader: BufReader<T>) -> (usize, usize, usize, usize
         words += 1;
     }
     (bytes, chars, words, lines)
+}
+
+// count bytes, lines
+pub(crate) fn hyperscreamingcount<T: Read>(mut reader: BufReader<T>) -> (usize, usize) {
+    let (mut bytes, mut lines) = (0, 0);
+    loop {
+        let buffer = match reader.fill_buf() {
+            Ok(b) => b,
+            Err(_) => return (0, 0), // TODO
+        };
+        let len = buffer.len();
+        if len == 0 {
+            break;
+        }
+        bytes += len;
+        lines += bytecount::count(buffer, b'\n');
+        reader.consume(len);
+    }
+    (bytes, lines)
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -390,6 +412,22 @@ mod tests {
         assert_eq!(
             8, words,
             "expected word count does not match actual word count"
+        );
+        assert_eq!(
+            1, lines,
+            "expected line count does not match actual line count"
+        );
+    }
+
+    #[test]
+    fn hyperscreamingcount_has_correct_counts() {
+        let text: &[u8] =
+            "hello😀😃😄😁😆😅😂🤣😀😃😄😁 hello world 12345\n67890😀 😃 😄 😁".as_bytes();
+        let reader = BufReader::with_capacity(10, text);
+        let (bytes, lines) = hyperscreamingcount(reader);
+        assert_eq!(
+            96, bytes,
+            "expected byte count does not match actual byte count"
         );
         assert_eq!(
             1, lines,

@@ -142,6 +142,15 @@ fn count_readable<R: Read>(counter: Counter<R>) -> Counted {
             words: if counter.words { Some(words) } else { None },
             lines: if counter.lines { Some(lines) } else { None },
         }
+    } else if counter.lines && !counter.words {
+        let reader = BufReader::with_capacity(BUFFER_SIZE, counter.data);
+        let (bytes, lines) = count::hyperscreamingcount(reader);
+        Counted {
+            bytes: if counter.bytes { Some(bytes) } else { None },
+            chars: None,
+            words: None,
+            lines: if counter.lines { Some(lines) } else { None },
+        }
     } else {
         let reader = BufReader::with_capacity(BUFFER_SIZE, counter.data);
         let (bytes, words, lines) = count::binary(reader);
@@ -223,6 +232,13 @@ mod tests {
         let c = path.countable().bytes().chars().words().lines().count();
         assert_eq!(1048697, c.bytes.unwrap());
         assert_eq!(183155, c.words.unwrap());
+        assert_eq!(20681, c.lines.unwrap());
+    }
+
+    #[test]
+    fn correct_count_for_lines_only() {
+        let path: PathBuf = ["test_data", "default.txt"].iter().collect();
+        let c = path.countable().lines().count();
         assert_eq!(20681, c.lines.unwrap());
     }
 }
